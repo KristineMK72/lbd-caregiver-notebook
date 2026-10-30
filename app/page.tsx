@@ -51,7 +51,7 @@ function getPossibleReasons(form: {
   const reasons: string[] = [];
   const hasNonUsual =
     form.alertness !== "usual" ||
-    form.mood !== "usual" ||
+    (form.mood !== "usual" && form.mood !== "up") ||
     form.shakiness !== "none" ||
     form.sweaty ||
     form.confused ||
@@ -72,7 +72,7 @@ function getPossibleReasons(form: {
     );
   }
 
-  if (form.alertness !== "usual" || form.confused || form.mood !== "usual") {
+  if (form.alertness !== "usual" || form.confused || (form.mood !== "usual" && form.mood !== "up")) {
     reasons.push(
       "Lewy body dementia fluctuation — alertness, thinking, and mood can shift over hours even when meds are on time."
     );
@@ -129,6 +129,13 @@ function getPossibleReasons(form: {
   if (form.alertness === "agitated") {
     reasons.push(
       "Agitation / restlessness can come from LBD hallucinations or fluctuations, pain, infection, wearing-off, or alcohol effects."
+    );
+  }
+
+  // Positive note if up mood with other things
+  if (form.mood === "up" && hasNonUsual) {
+    reasons.push(
+      "Mood is good / up — worth noting even if other things are off. Positive mood shifts can also be part of LBD fluctuations."
     );
   }
 
@@ -282,6 +289,7 @@ export default function Home() {
           <label>Mood</label>
           <select value={form.mood} onChange={(e) => setForm({ ...form, mood: e.target.value })}>
             <option value="usual">Usual</option>
+            <option value="up">Good / up</option>
             <option value="down">Down / low</option>
             <option value="irritable">Irritable</option>
             <option value="withdrawn">Withdrawn / quiet</option>

@@ -40,6 +40,102 @@ const DANGEROUS_DRUGS = [
   "Other typical antipsychotics",
 ];
 
+function getPossibleReasons(form: {
+  alertness: string;
+  mood: string;
+  shakiness: string;
+  sweaty: boolean;
+  confused: boolean;
+  recentAlcohol: boolean;
+}): string[] {
+  const reasons: string[] = [];
+  const hasNonUsual =
+    form.alertness !== "usual" ||
+    form.mood !== "usual" ||
+    form.shakiness !== "none" ||
+    form.sweaty ||
+    form.confused ||
+    form.recentAlcohol;
+
+  if (!hasNonUsual) return [];
+
+  // Core LBD / levodopa patterns
+  if (
+    form.alertness === "drowsy" ||
+    form.alertness === "hard to rouse" ||
+    form.shakiness !== "none" ||
+    form.sweaty ||
+    form.confused
+  ) {
+    reasons.push(
+      "Wearing-off of carbidopa/levodopa (especially near the end of a dose interval). Can look like more sleepiness, shakiness, sweating, confusion, or low energy."
+    );
+  }
+
+  if (form.alertness !== "usual" || form.confused || form.mood !== "usual") {
+    reasons.push(
+      "Lewy body dementia fluctuation — alertness, thinking, and mood can shift over hours even when meds are on time."
+    );
+  }
+
+  // Depression history
+  if (form.mood === "down" || form.mood === "withdrawn" || form.alertness === "drowsy") {
+    reasons.push(
+      "Long history of depression. Can show up as low mood, withdrawal, low energy, or seeming more confused. Hard to separate from LBD or med effects — note both."
+    );
+  }
+
+  // Alcohol
+  if (form.recentAlcohol || form.confused || form.alertness !== "usual" || form.sweaty) {
+    reasons.push(
+      "Alcohol mixed with LBD meds (especially levodopa), antidepressants, or other drugs. Can worsen confusion, autonomic swings (sweating, BP), sleepiness, and fall risk even in small amounts."
+    );
+  }
+
+  // Meningioma / left-sided
+  if (form.alertness === "hard to rouse" || form.confused) {
+    reasons.push(
+      "Right-hemisphere meningioma contribution. New left-sided weakness, sudden one-sided neglect, or seizure-like activity needs urgent evaluation."
+    );
+  }
+
+  // Autonomic
+  if (form.sweaty || form.shakiness !== "none") {
+    reasons.push(
+      "Autonomic fluctuation common in LBD (sweating, blood-pressure swings, dizziness). Often overlaps with wearing-off."
+    );
+  }
+
+  // Infection / illness
+  if (form.sweaty || form.confused || form.alertness !== "usual") {
+    reasons.push(
+      "Early infection or other illness. Sweating + more confusion or sleepiness can look like wearing-off or an autonomic swing. Worth checking if it doesn’t fit her usual pattern."
+    );
+  }
+
+  // Specific high-priority
+  if (form.alertness === "hard to rouse") {
+    reasons.push(
+      "Hard to rouse is higher priority. Could be severe wearing-off, infection, alcohol interaction, tumor-related change, or something else needing medical attention."
+    );
+  }
+
+  if (form.sweaty && form.confused) {
+    reasons.push(
+      "Sweaty + confused cluster was previously linked to a possible levodopa wearing-off episode that led to hospital evaluation. Note timing relative to last dose."
+    );
+  }
+
+  if (form.alertness === "agitated") {
+    reasons.push(
+      "Agitation / restlessness can come from LBD hallucinations or fluctuations, pain, infection, wearing-off, or alcohol effects."
+    );
+  }
+
+  // Deduplicate while preserving order
+  return [...new Set(reasons)];
+}
+
 export default function Home() {
   const [tab, setTab] = useState<"checkin" | "meds" | "guide" | "er" | "details">("checkin");
   const [checkins, setCheckins] = useState<CheckIn[]>([]);
@@ -151,6 +247,8 @@ export default function Home() {
     URL.revokeObjectURL(url);
   };
 
+  const possibleReasons = getPossibleReasons(form);
+
   return (
     <div className="container">
       <header>
@@ -206,6 +304,20 @@ export default function Home() {
           <label>
             <input type="checkbox" checked={form.recentAlcohol} onChange={(e) => setForm({ ...form, recentAlcohol: e.target.checked })} /> Alcohol in last 24 hours
           </label>
+
+          {possibleReasons.length > 0 && (
+            <div className="reasons-box">
+              <strong>Possible things this could be (not a diagnosis):</strong>
+              <ul>
+                {possibleReasons.map((r, i) => (
+                  <li key={i}>{r}</li>
+                ))}
+              </ul>
+              <p style={{ margin: "8px 0 0", fontSize: "0.85rem", color: "var(--muted)" }}>
+                These are common patterns given her LBD, meningioma, depression history, and alcohol/med risks. They update as you select observations. Escalate if hard to rouse, new left-sided weakness, seizing, or something feels urgently wrong. Call 911 in an emergency.
+              </p>
+            </div>
+          )}
 
           <label>Notes (timing relative to last dose, other observations…)</label>
           <textarea

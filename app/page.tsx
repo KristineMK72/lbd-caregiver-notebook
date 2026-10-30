@@ -8,6 +8,7 @@ type CheckIn = {
   temp?: number;
   sweaty: boolean;
   confused: boolean;
+  recentAlcohol: boolean;
   notes: string;
   flag?: string;
 };
@@ -20,7 +21,12 @@ type Med = {
 };
 
 const DEFAULT_MEDS: Med[] = [
-  { name: "Carbidopa/Levodopa", dose: "as prescribed", times: ["08:00", "12:00", "16:00", "20:00"], notes: "Watch for wearing-off near end of interval" },
+  {
+    name: "Carbidopa/Levodopa",
+    dose: "as prescribed on bottle",
+    times: ["08:00", "12:00", "16:00", "20:00"],
+    notes: "Watch for wearing-off near the end of each interval. Do not hold just because she is not eating unless clinician ordered.",
+  },
 ];
 
 const DANGEROUS_DRUGS = [
@@ -40,15 +46,20 @@ export default function Home() {
     name: "Mom",
     wellTemp: 97.5,
     clinician: "",
-    notes: "Lewy body dementia. Right-hemisphere meningioma.",
+    notes: "Lewy body dementia. Right-hemisphere meningioma. Long history of depression.",
+    depressionHistory: "Dealt with depression a lot of her life.",
+    alcoholNotes: "Mixing alcohol with LBD meds (especially levodopa) and other drugs can worsen confusion, autonomic swings, and falls.",
   });
 
   const [form, setForm] = useState({
     temp: "",
     sweaty: false,
     confused: false,
+    recentAlcohol: false,
     notes: "",
   });
+
+  const [newMed, setNewMed] = useState({ name: "", dose: "", times: "", notes: "" });
 
   useEffect(() => {
     const c = localStorage.getItem("lbd-checkins");
@@ -78,18 +89,40 @@ export default function Home() {
     const temp = form.temp ? parseFloat(form.temp) : undefined;
     let flag: string | undefined;
     if (temp && temp < 96.5) flag = "Low temp";
-    if (form.sweaty && form.confused) flag = flag ? flag + " + sweaty/confused" : "Sweaty + confused cluster";
+    if (form.sweaty && form.confused) flag = flag ? flag + " + sweaty/confused cluster" : "Sweaty + confused cluster";
+    if (form.recentAlcohol) flag = flag ? flag + " + recent alcohol" : "Recent alcohol";
     const entry: CheckIn = {
       id: Date.now().toString(),
       time: new Date().toLocaleString(),
       temp,
       sweaty: form.sweaty,
       confused: form.confused,
+      recentAlcohol: form.recentAlcohol,
       notes: form.notes,
       flag,
     };
     saveCheckins([entry, ...checkins]);
-    setForm({ temp: "", sweaty: false, confused: false, notes: "" });
+    setForm({ temp: "", sweaty: false, confused: false, recentAlcohol: false, notes: "" });
+  };
+
+  const addMed = () => {
+    if (!newMed.name.trim()) return;
+    const times = newMed.times
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+    const m: Med = {
+      name: newMed.name.trim(),
+      dose: newMed.dose.trim() || "as prescribed",
+      times: times.length ? times : ["see bottle"],
+      notes: newMed.notes.trim() || undefined,
+    };
+    saveMeds([...meds, m]);
+    setNewMed({ name: "", dose: "", times: "", notes: "" });
+  };
+
+  const removeMed = (i: number) => {
+    saveMeds(meds.filter((_, idx) => idx !== i));
   };
 
   const exportData = () => {
@@ -121,6 +154,9 @@ export default function Home() {
       {tab === "checkin" && (
         <section>
           <h2>Today’s check-in</h2>
+          <p style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
+            The sweaty, confused, ~97° cluster is a pattern worth noting — especially late in a levodopa dose. It can be wearing-off, an autonomic swing, or infection. Escalate if hard to rouse, new left-sided weakness, seizing, or truly too cold/feverish.
+          </p>
           <label>Temperature (°F)</label>
           <input
             type="number"
@@ -135,9 +171,12 @@ export default function Home() {
           <label>
             <input type="checkbox" checked={form.confused} onChange={(e) => setForm({ ...form, confused: e.target.checked })} /> More confused than usual
           </label>
-          <label>Notes</label>
+          <label>
+            <input type="checkbox" checked={form.recentAlcohol} onChange={(e) => setForm({ ...form, recentAlcohol: e.target.checked })} /> Alcohol in last 24 hours
+          </label>
+          <label>Notes (timing relative to last dose, other symptoms…)</label>
           <textarea
-            placeholder="What else? Timing relative to last dose, other symptoms..."
+            placeholder="What else? Mood, sleep, falls, new weakness…"
             value={form.notes}
             onChange={(e) => setForm({ ...form, notes: e.target.value })}
           />
@@ -145,12 +184,13 @@ export default function Home() {
 
           <h3 style={{ marginTop: 24 }}>Recent</h3>
           <div className="card-list">
-            {checkins.slice(0, 8).map((c) => (
+            {checkins.slice(0, 10).map((c) => (
               <div key={c.id} className="entry">
                 <strong>{c.time}</strong>
                 {c.temp != null && <span className={c.temp < 97 ? " temp-low" : ""}> · {c.temp}°F</span>}
                 {c.sweaty && " · Sweaty"}
                 {c.confused && " · Confused"}
+                {c.recentAlcohol && " · Alcohol"}
                 {c.flag && <span className="flag"> {c.flag}</span>}
                 {c.notes && <div style={{ marginTop: 4, color: "var(--muted)" }}>{c.notes}</div>}
               </div>
@@ -164,38 +204,89 @@ export default function Home() {
         <section>
           <h2>Medications</h2>
           <p style={{ color: "var(--muted)", fontSize: "0.9rem" }}>
-            Only list what is actually prescribed. Times help you notice wearing-off windows. This app will not suggest extra doses.
+            Only list what is actually on her bottles. Times help you notice wearing-off windows. This notebook will not tell you to give an extra dose.
           </p>
           {meds.map((m, i) => (
             <div key={i} className="entry" style={{ marginBottom: 12 }}>
               <strong>{m.name}</strong> — {m.dose}
               <div>Times: {m.times.join(", ")}</div>
-              {m.notes && <div style={{ color: "var(--muted)" }}>{m.notes}</div>}
+              {m.notes && <div style={{ color: "var(--muted)", marginTop: 4 }}>{m.notes}</div>}
+              <button
+                style={{ marginTop: 8, background: "transparent", color: "var(--danger)", border: "1px solid var(--danger)", borderRadius: 6, padding: "4px 8px", fontSize: "0.8rem" }}
+                onClick={() => removeMed(i)}
+              >
+                Remove
+              </button>
             </div>
           ))}
-          <p style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
-            Edit the list in the Details tab or by updating local storage. Default includes a common levodopa schedule as a starting point.
-          </p>
+
+          <h3 style={{ marginTop: 24 }}>Add a medication</h3>
+          <label>Name</label>
+          <input value={newMed.name} onChange={(e) => setNewMed({ ...newMed, name: e.target.value })} placeholder="e.g. Donepezil" />
+          <label>Dose</label>
+          <input value={newMed.dose} onChange={(e) => setNewMed({ ...newMed, dose: e.target.value })} placeholder="as on bottle" />
+          <label>Times (comma-separated, e.g. 08:00, 14:00)</label>
+          <input value={newMed.times} onChange={(e) => setNewMed({ ...newMed, times: e.target.value })} />
+          <label>Notes</label>
+          <input value={newMed.notes} onChange={(e) => setNewMed({ ...newMed, notes: e.target.value })} />
+          <button className="primary" onClick={addMed}>Add medication</button>
+
+          <h3 style={{ marginTop: 28 }}>Common LBD medications (reference only)</h3>
+          <div className="entry">
+            <strong>Carbidopa/Levodopa</strong> — motor symptoms. Wearing-off can look like confusion, sweating, stiffness, or low energy near the end of the interval.
+          </div>
+          <div className="entry" style={{ marginTop: 8 }}>
+            <strong>Cholinesterase inhibitors</strong> (donepezil, rivastigmine, galantamine) — cognition/fluctuations. Do not hold just because she is not eating unless ordered.
+          </div>
+          <div className="entry" style={{ marginTop: 8 }}>
+            <strong>Antidepressants</strong> — she has a long history of depression. Some can interact with LBD meds or worsen autonomic symptoms; discuss with clinician.
+          </div>
         </section>
       )}
 
       {tab === "guide" && (
         <section>
-          <h2>Quick guide</h2>
+          <h2>Guide</h2>
+
           <h3>Lewy Body Dementia</h3>
-          <p>Fluctuations are common. Cognition, alertness, and movement can change over hours. Autonomic symptoms (temperature, sweating, blood pressure) can appear, especially around medication timing.</p>
+          <p>
+            Fluctuations are common. Alertness, cognition, and movement can change over hours. Autonomic symptoms (temperature regulation, sweating, blood pressure, dizziness) often appear, especially around medication timing. Hallucinations and sleep changes are also frequent. The combination of LBD + a brain tumor + long-term depression makes patterns harder to read — document what you see.
+          </p>
 
           <h3>Right-hemisphere meningioma</h3>
-          <p>May contribute to cognitive or sensory changes on the left side of the body. New weakness on one side, sudden confusion, or seizure-like activity needs urgent evaluation.</p>
+          <p>
+            A meningioma in the right hemisphere can contribute to left-sided sensory or motor changes, spatial issues, or cognitive shifts. New weakness on the left, sudden one-sided neglect, or seizure-like activity needs urgent evaluation. It does not replace the LBD picture but can overlap with it.
+          </p>
+
+          <h3>Depression history</h3>
+          <p>
+            She has dealt with depression for a lot of her life. Depression can look like increased confusion, low energy, or withdrawal, and it interacts with LBD fluctuations and medication effects. Note mood changes in check-ins. Do not assume a “down day” is only depression or only LBD — track both.
+          </p>
+
+          <h3>Alcohol and mixing</h3>
+          <p>
+            Mixing alcohol with LBD medications (especially carbidopa/levodopa), antidepressants, or other drugs can worsen confusion, increase fall risk, destabilize blood pressure and temperature regulation, and amplify autonomic swings. Even small amounts can matter. Note any recent alcohol in the check-in. This is not about judgment — it is about seeing the pattern clearly.
+          </p>
+
+          <h3>The hospital episode pattern</h3>
+          <p>
+            A cluster of sweating, increased confusion, and a temperature around 97° (which can be normal for many older adults on a good day) was associated with a possible levodopa wearing-off episode that led to hospital evaluation. Many people run near 97°F at baseline. What matters is the cluster against her own baseline, especially late in a dose interval. Wearing-off, an autonomic swing, and early infection can look similar. Escalate if she is hard to rouse, newly weak on the left, seizing, or truly too cold or feverish with other illness signs.
+          </p>
 
           <h3>Temperature</h3>
-          <p>Many older adults run near 97°F. A drop plus sweating and confusion is a pattern worth noting — it can be wearing-off, infection, or autonomic. Escalate if hard to wake, new one-sided weakness, or temperature truly low or high with other signs of illness.</p>
+          <p>
+            Her usual well-day temperature is stored in Details. A drop plus sweating and confusion is a pattern worth logging. Do not treat a single number as diagnostic.
+          </p>
 
           <h3>Drugs that can harm people with Lewy body</h3>
           <ul>
-            {DANGEROUS_DRUGS.map((d) => <li key={d}>{d}</li>)}
+            {DANGEROUS_DRUGS.map((d) => (
+              <li key={d}>{d}</li>
+            ))}
           </ul>
-          <p>Do not hold carbidopa/levodopa or a cholinesterase inhibitor simply because the person is not eating, unless the clinician has ordered it.</p>
+          <p>
+            Do not hold carbidopa/levodopa or a cholinesterase inhibitor simply because she is not eating, unless the treating clinician has ordered it.
+          </p>
         </section>
       )}
 
@@ -206,15 +297,18 @@ export default function Home() {
           <div className="er-card">
             <h3>LEWY BODY DEMENTIA — IMPORTANT</h3>
             <p><strong>Patient:</strong> {details.name}</p>
-            <p><strong>Conditions:</strong> Lewy body dementia. Right-hemisphere meningioma.</p>
+            <p><strong>Conditions:</strong> Lewy body dementia. Right-hemisphere meningioma. Long history of depression.</p>
             <p><strong>Do NOT give:</strong></p>
             <ul>
-              {DANGEROUS_DRUGS.map((d) => <li key={d}>{d}</li>)}
+              {DANGEROUS_DRUGS.map((d) => (
+                <li key={d}>{d}</li>
+              ))}
             </ul>
             <p><strong>Do NOT hold</strong> carbidopa/levodopa or cholinesterase inhibitor just because the patient is not eating, unless ordered by the treating clinician.</p>
+            <p><strong>Alcohol:</strong> Recent alcohol can worsen confusion and autonomic symptoms. Ask about last use.</p>
             <p><strong>Clinician:</strong> {details.clinician || "—"}</p>
             <p style={{ fontSize: "0.85rem", marginTop: 16 }}>
-              This card is for communication only. It is not a medical order. Contact the regular clinician for guidance when possible.
+              This card is for communication only. It is not a medical order. Contact the regular clinician for guidance when possible. In emergency call 911.
             </p>
           </div>
           <button className="primary" onClick={() => window.print()}>Print / Save as PDF</button>
@@ -237,13 +331,17 @@ export default function Home() {
           <input value={details.clinician} onChange={(e) => saveDetails({ ...details, clinician: e.target.value })} placeholder="Dr. Smith 555-1234" />
           <label>Key notes</label>
           <textarea value={details.notes} onChange={(e) => saveDetails({ ...details, notes: e.target.value })} />
+          <label>Depression history</label>
+          <textarea value={details.depressionHistory} onChange={(e) => saveDetails({ ...details, depressionHistory: e.target.value })} />
+          <label>Alcohol / mixing notes</label>
+          <textarea value={details.alcoholNotes} onChange={(e) => saveDetails({ ...details, alcoholNotes: e.target.value })} />
           <button className="primary" onClick={exportData}>Export backup (JSON)</button>
         </section>
       )}
 
       <p className="disclaimer">
         This notebook stores data only in this browser. It does not diagnose, recommend doses, or replace clinical care.
-        In an emergency call 911. Discuss patterns with her clinician.
+        In an emergency call 911. Discuss patterns with her clinician. Alcohol and medication interactions are noted for awareness only.
       </p>
     </div>
   );

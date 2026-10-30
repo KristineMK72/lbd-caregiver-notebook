@@ -124,6 +124,31 @@ button.primary {
   border-left: 3px solid var(--accent);
 }
 
+.reasons-box {
+  margin: 16px 0;
+  padding: 14px 16px;
+  background: #13202c;
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  border-left: 4px solid var(--accent);
+}
+
+.reasons-box strong {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--accent);
+}
+
+.reasons-box ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.reasons-box li {
+  margin-bottom: 6px;
+  font-size: 0.92rem;
+}
+
 .er-card {
   background: #fff;
   color: #111;
@@ -145,5 +170,4 @@ button.primary {
   padding: 10px;
 }
 
-.temp-low { color: var(--warning); font-weight: 700; }
 .flag { background: #fbbf24; color: #111; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; font-weight: 700; }
